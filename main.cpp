@@ -6,9 +6,8 @@ int main()
     EXPN = new exception_data (20, "ExceptionErrors.txt");
     try
     {
-        Node_t<NodeContent_t> root;
-        TreeLoader_t trl ("ast.txt"s, &root);
-        trl.LoadTree ();
+        Ast2AsmTranslator_t a2a ("ast.txt"s, "asm.txt"s);
+        a2a.Translate ();
         return 0;
     }
     catch (ExceptionHandler& ex)

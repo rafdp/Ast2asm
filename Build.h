@@ -9,6 +9,7 @@ using namespace std::literals::string_literals;
 exception_data* EXPN = nullptr;
 
 #include <assert.h>
+#include <math.h>
 #include <iostream>
 #include <locale>
 #include <vector>

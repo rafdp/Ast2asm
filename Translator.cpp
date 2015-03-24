@@ -14,7 +14,7 @@ class Ast2AsmTranslator_t : NZA_t
 
     void ok ();
     uint32_t label () {nLabels_++; return nLabels_-1;}
-    uint32_t Labels () {return nLabels_;}
+    uint32_t labels () {return nLabels_;}
     uint32_t endlabel () {nEndLabels_++; return nEndLabels_-1;}
     uint32_t EndLabels () {return nEndLabels_;}
 
@@ -34,6 +34,7 @@ class Ast2AsmTranslator_t : NZA_t
 public:
 
     Ast2AsmTranslator_t (std::string source, std::string target);
+    ~Ast2AsmTranslator_t () {}
 
     void Translate ();
     void TranslateTree (Node_t<NodeContent_t>* current, bool root);
@@ -54,16 +55,20 @@ try :
     nEndLabels_ (),
     needEnd_    (false)
 {
+    loader_.LoadTree ();
 END (CTOR)
 
 void Ast2AsmTranslator_t::Translate ()
 {
     BEGIN
+    fprintf (*target_, "import \"msvcrt.dll\", \"printf _printf\"\n");
+    fprintf (*target_, "import \"msvcrt.dll\", \"scanf _scanf\"\n");
+    fprintf (*target_, "var pointer, type_ptr\n\n");
     uint32_t size = root_[0].GetNChildren ();
     for (uint32_t i = 0; i < size; i++)
     {
         fprintf (*target_, "var variable%d, type_qword\n", i);
-        fprintf (*target_, "mov variable%d, %lld\n", i, root_[0][i][0].GetElem ().data);
+        fprintf (*target_, "mov variable%d, %lld\n\n", i, root_[0][i][0].GetElem ().data);
     }
 
     size = root_.GetNChildren () - 1;
@@ -73,15 +78,17 @@ void Ast2AsmTranslator_t::Translate ()
         fprintf (*target_, "func function%d\n", i - 1);
         TranslateTree (root_.GetChild (i), true);
 
-        fprintf (*target_, "ret\n");
+        fprintf (*target_, "ret\n\n");
     }
     fprintf (*target_, "\n\n");
+    printf ("C\n");
     TranslateTree (root_.GetLastChild (), true);
     END (TRANSLATE)
 }
 
 void Ast2AsmTranslator_t::TranslateTree (Node_t<NodeContent_t>* current, bool root)
 {   //!ResolveEndLabel ();
+    printf ("%d %g\n", current->GetElem ().flag, current->GetElem ().data);
     BEGIN
     if (root)
     {
@@ -92,38 +99,100 @@ void Ast2AsmTranslator_t::TranslateTree (Node_t<NodeContent_t>* current, bool ro
     }
     if (current->GetElem ().flag == NODE_STD_FUNCTION)
     {
-        /*switch (current->GetElem ().data)
+        #define CHECK(dt) if (fabs (current->GetElem ().data - STD_FUNC_##dt) <= 0.01)
+        CHECK (INPUT)
         {
-            case STD_FUNC_INPUT:
-            case STD_FUNC_INPUT:
-            case STD_FUNC_GETCH:
-            case STD_FUNC_CALL_USER:
-        }*/
+            fprintf (*target_, "lea pointer, variable%g\n",
+                     round (current->GetChild (0)->GetElem ().data));
+
+            fprintf (*target_, "init_stack_dump_point\n");
+            fprintf (*target_, "push pointer\n");
+            fprintf (*target_, "push \"%%lg\"\n");
+            fprintf (*target_, "jit_call_void _scanf\n");
+            return;
+        }
+        else
+        CHECK (OUTPUT)
+        {
+            TranslateArithmeticTree (current->GetChild (0));
+            fprintf (*target_, "printd PRINT_NUMBER\n");
+            fprintf (*target_, "pop\n");
+            return;
+        }
+        else
+        CHECK (GETCH)
+        {
+            fprintf (*target_, "getch\n");
+            return;
+        }
+        else
+        CHECK (CALL_USER)
+        {
+            fprintf (*target_, "call function%g\n",
+                     round (current->GetChild (0)->GetElem ().data));
+            return;
+        }
+        else
+            _EXC_N (UNKNOWN_CMD, "Found unknown cmd (%g)" _ current->GetElem ().data)
+        #undef CHECK
     }
     else
     if (current->GetElem ().flag == NODE_OPERATOR)
     {
         TranslateArithmeticTree (current);
-        ResolveEndLabel ();
     }
     else
     if (current->GetElem ().flag == NODE_LOGIC)
     {
-
+        #define CHECK(dt) if (fabs (current->GetElem ().data - LOGIC_##dt) <= 0.01)
+        CHECK (IF)
+        {
+            bool needElse = (current->GetNChildren () == 3);
+            TranslateArithmeticTree (current->GetChild (0)->GetChild (0));
+            TranslateTree (current->GetChild (1), true);
+            uint32_t label_ = 0;
+            if (needElse)
+            {
+                label_ = label ();
+                fprintf (*target_, "plabel Label%d\n", label_);
+                fprintf (*target_, "jmp Label%d\n", label_);
+            }
+            ResolveEndLabel ();
+            if (needElse)
+            {
+                TranslateTree (current->GetChild (2), true);
+                fprintf (*target_, "Label%d:\n", label_);
+            }
+        }
+        else
+        CHECK (WHILE)
+        {
+            uint32_t label_ = label ();
+            fprintf (*target_, "Label%d:\n", label_);
+            TranslateArithmeticTree (current->GetChild (0)->GetChild (0), false);
+            TranslateTree (current->GetChild (1), true);
+            fprintf (*target_, "jmp Label%d\n", label_);
+            ResolveEndLabel ();
+        }
+        else
+            _EXC_N (UNKNOWN_LOGIC, "Found unknown logic cmd (%g)" _ current->GetElem ().data)
+        #undef CHECK
     }
     END (TRANSLATE_TREE)
 }
 
 void Ast2AsmTranslator_t::TranslateArithmeticTree (Node_t<NodeContent_t>* current, bool inv)
 {
+    printf ("_%d %g\n", current->GetElem ().flag, current->GetElem ().data);
     BEGIN
     if (current->GetElem ().flag == NODE_OPERATOR)
     {
         #define CHECK(dt) if (fabs (current->GetElem ().data - OP_##dt) <= 0.01)
         CHECK (EQUAL)
         {
-            TranslateArithmeticTree (current->GetChild (0), inv);
-            fprintf (*target_, "pop variable%lld\n", current->GetChild (0)->GetElem ().data);
+            TranslateArithmeticTree (current->GetChild (1), inv);
+            fprintf (*target_, "pop variable%g\n",
+                     round (current->GetChild (0)->GetElem ().data));
         }
         else
         CHECK (PLUS)
@@ -264,35 +333,37 @@ void Ast2AsmTranslator_t::TranslateArithmeticTree (Node_t<NodeContent_t>* curren
         else
         CHECK (PLUS_EQUAL)
         {
-            TranslateArithmeticTree (current->GetChild (0), inv);
+            TranslateArithmeticTree (current->GetChild (1), inv);
             fprintf (*target_, "pop aqx\n");
-            fprintf (*target_, "addd variable%lld, aqx\n",
-                     current->GetChild (0)->GetElem ().data);
+            fprintf (*target_, "addd variable%g, aqx\n",
+                     round (current->GetChild (0)->GetElem ().data));
         }
         else
         CHECK (MINUS_EQUAL)
         {
-            TranslateArithmeticTree (current->GetChild (0), inv);
+            TranslateArithmeticTree (current->GetChild (1), inv);
             fprintf (*target_, "pop aqx\n");
-            fprintf (*target_, "subd variable%lld, aqx\n",
-                     current->GetChild (0)->GetElem ().data);
+            fprintf (*target_, "subd variable%g, aqx\n",
+                     round (current->GetChild (0)->GetElem ().data));
         }
         else
         CHECK (MULTIPLY_EQUAL)
         {
-            TranslateArithmeticTree (current->GetChild (0), inv);
+            TranslateArithmeticTree (current->GetChild (1), inv);
             fprintf (*target_, "pop aqx\n");
-            fprintf (*target_, "muld variable%lld, aqx\n",
-                     current->GetChild (0)->GetElem ().data);
+            fprintf (*target_, "muld variable%g, aqx\n",
+                     round (current->GetChild (0)->GetElem ().data));
         }
         else
         CHECK (DIVIDE_EQUAL)
         {
-            TranslateArithmeticTree (current->GetChild (0), inv);
+            TranslateArithmeticTree (current->GetChild (1), inv);
             fprintf (*target_, "pop aqx\n");
-            fprintf (*target_, "divd variable%lld, aqx\n",
-                     current->GetChild (0)->GetElem ().data);
+            fprintf (*target_, "divd variable%g, aqx\n",
+                     round (current->GetChild (0)->GetElem ().data));
         }
+        else
+            _EXC_N (UNKNOWN_OP, "Found unknown op (%g)" _ current->GetElem ().data)
         #undef CHECK
 
     }
@@ -304,7 +375,7 @@ void Ast2AsmTranslator_t::TranslateArithmeticTree (Node_t<NodeContent_t>* curren
     else
     if (current->GetElem ().flag == NODE_VARIABLE)
     {
-        fprintf (*target_, "push variable%lld\n", current->GetElem ().data);
+        fprintf (*target_, "push variable%g\n", round (current->GetElem ().data));
     }
     else
     if (current->GetElem ().flag == NODE_STD_FUNCTION)
@@ -341,7 +412,10 @@ void Ast2AsmTranslator_t::TranslateArithmeticTree (Node_t<NodeContent_t>* curren
             TranslateArithmeticTree (current->GetChild (1), inv);
             fprintf (*target_, "mind\n");
         }
+        else
+            _EXC_N (UNKNOWN_CMD, "Found unknown cmd (%g)" _ current->GetElem ().data)
         #undef CHECK
+
     }
     END (TRANSLATE_ARITHMETIC_TREE)
 }
