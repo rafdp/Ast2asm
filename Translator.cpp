@@ -81,14 +81,13 @@ void Ast2AsmTranslator_t::Translate ()
         fprintf (*target_, "ret\n\n");
     }
     fprintf (*target_, "\n\n");
-    printf ("C\n");
     TranslateTree (root_.GetLastChild (), true);
     END (TRANSLATE)
 }
 
 void Ast2AsmTranslator_t::TranslateTree (Node_t<NodeContent_t>* current, bool root)
 {   //!ResolveEndLabel ();
-    printf ("%d %g\n", current->GetElem ().flag, current->GetElem ().data);
+    //printf ("%d %g\n", current->GetElem ().flag, current->GetElem ().data);
     BEGIN
     if (root)
     {
@@ -183,7 +182,7 @@ void Ast2AsmTranslator_t::TranslateTree (Node_t<NodeContent_t>* current, bool ro
 
 void Ast2AsmTranslator_t::TranslateArithmeticTree (Node_t<NodeContent_t>* current, bool inv)
 {
-    printf ("_%d %g\n", current->GetElem ().flag, current->GetElem ().data);
+    //printf ("_%d %g\n", current->GetElem ().flag, current->GetElem ().data);
     BEGIN
     if (current->GetElem ().flag == NODE_OPERATOR)
     {

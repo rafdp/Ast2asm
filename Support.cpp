@@ -199,7 +199,7 @@ struct CumulativeErrors_t : NZA_t
                    uint8_t mode)
     {
         BEGIN
-        printf ("Error\n");
+        //printf ("Error\n");
         errors.push_back (ErrorInfo_t (src, msg, line, pos, mode));
         if (mode == EM_ERROR)
             ignorable = false;
