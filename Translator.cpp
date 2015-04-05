@@ -68,7 +68,8 @@ void Ast2AsmTranslator_t::Translate ()
     for (uint32_t i = 0; i < size; i++)
     {
         fprintf (*target_, "var variable%d, type_qword\n", i);
-        fprintf (*target_, "mov variable%d, %lld\n\n", i, root_[0][i][0].GetElem ().data);
+        void* ptr = &root_[0][i][0].GetElem ().data;
+        fprintf (*target_, "mov variable%d, %lld\n\n", i, *reinterpret_cast <int64_t*> (ptr));
     }
 
     size = root_.GetNChildren () - 1;
@@ -369,7 +370,8 @@ void Ast2AsmTranslator_t::TranslateArithmeticTree (Node_t<NodeContent_t>* curren
     else
     if (current->GetElem ().flag == NODE_NUMBER)
     {
-        fprintf (*target_, "push %lld\n", current->GetElem ().data);
+        void* ptr = &current->GetElem ().data;
+        fprintf (*target_, "push %lld\n", *reinterpret_cast<int64_t*> (ptr));
     }
     else
     if (current->GetElem ().flag == NODE_VARIABLE)

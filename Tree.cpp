@@ -62,7 +62,7 @@ struct NodeContent_t
             break;
         }
         fprintf (*f, " %g", data - ((flag == NODE_USER_FUNCTION) ? 1 : 0));*/
-        fprintf (*f, "%d %g", flag, data - ((flag == NODE_USER_FUNCTION) ? 1 : 0));
+        fprintf (*f, "%d %.6g", flag, data - ((flag == NODE_USER_FUNCTION) ? 1 : 0));
     }
 /*
     double GetDouble ()
